@@ -2,6 +2,47 @@ import React, { Component, createElement, cloneElement } from 'react'
 import uuid from 'uuid/v4'
 import './App.css'
 
+// https://gist.github.com/petersirka/dfac415e1e1e4993af826c0ff706eb4d
+const parseTransform = str => {
+  var val = str.match(/(translate|matrix|rotate|skewX|skewY|scale)\(.*?\)/g)
+  var obj = {}
+  if (val) {
+    for (var i = 0, length = val.length; i < length; i++) {
+      var item = val[i]
+      var index = item.indexOf('(')
+      var v = item.substring(index + 1, item.length - 1).split(/,|\s/)
+      var n = item.substring(0, index)
+      obj[n] = {}
+      switch (n) {
+        case 'translate':
+        case 'scale':
+          obj[n].x = +v[0] || 0
+          obj[n].y = +v[1] || 0
+          break
+        case 'rotate':
+          obj[n].a = +v[0] || 0
+          obj[n].x = +v[1] || 0
+          obj[n].y = +v[2] || 0
+          break
+        case 'skewX':
+        case 'skewY':
+          obj[n].a = +v[0]
+          break
+        case 'matrix':
+          obj[n].a = +v[0] || 0
+          obj[n].b = +v[1] || 0
+          obj[n].c = +v[2] || 0
+          obj[n].d = +v[3] || 0
+          obj[n].e = +v[4] || 0
+          obj[n].f = +v[5] || 0
+          break
+        default:
+      }
+    }
+  }
+  return obj
+}
+
 class App extends Component {
   state = {
     elem: 'path',
@@ -109,13 +150,12 @@ class App extends Component {
             ...(_origin.x !== _current.x || _origin.y !== _current.y
               ? {
                   [editingId]: cloneElement(editingElem, {
-                    // onMouseDown: e => {
-                    //   e.stopPropagation()
-                    //   const { offsetX: x, offsetY: y } = e.nativeEvent
-                    //   this.startMoveElem({ id: editingElem.props.id, x, y })
-                    // },
-                    // onMouseMove: this.moveElem,
-                    // onMouseUp: this.stopMoveElem,
+                    opacity: null,
+                    onMouseDown: e => {
+                      e.stopPropagation()
+                      const { offsetX: x, offsetY: y } = e.nativeEvent
+                      this.startMoveElem({ id: editingElem.props.id, x, y })
+                    },
                   }),
                 }
               : {}),
@@ -136,7 +176,11 @@ class App extends Component {
       _origin: { x, y },
       _current: { x, y },
       _last: { x, y },
-      editingElem: cloneElement(stack[id]),
+      editingElem: cloneElement(stack[id], {
+        onMouseMove: this.moveElem,
+        // onMouseUp: this.stopMoveElem,
+        opacity: 0.5,
+      }),
       editingId: id,
     }))
   }
@@ -148,30 +192,41 @@ class App extends Component {
     if (this.state._origin === null) {
       return
     }
+
     const { offsetX: x, offsetY: y } = e.nativeEvent
     this.setState(({ _current, editingElem }) => {
+      const parsed = editingElem.props.transform
+        ? parseTransform(editingElem.props.transform)
+        : { translate: { x: 0, y: 0 } }
       return {
+        _last: _current,
+        _current: { x, y },
         editingElem: cloneElement(editingElem, {
-          transform: `translate(${x - _current.x} ${y - _current.y})`,
+          transform: `translate(${parsed.translate.x + x - _current.x} ${parsed
+            .translate.y +
+            y -
+            _current.y})`,
         }),
       }
     })
   }
 
-  stopMoveElem = e => {
-    e.stopPropagation()
-    this.setState(({ stack, editingElem, editingId }) => ({
-      stack: {
-        ...stack,
-        [editingId]: editingElem,
-      },
-      editingElem: null,
-      editingId: null,
-      _origin: null,
-      _current: null,
-      _last: null,
-    }))
-  }
+  // stopMoveElem = e => {
+  //   e.stopPropagation()
+  //   this.setState(({ stack, editingElem, editingId }) => ({
+  //     stack: {
+  //       ...stack,
+  //       [editingId]: cloneElement(editingElem, {
+  //         opacity: null,
+  //       }),
+  //     },
+  //     editingElem: null,
+  //     editingId: null,
+  //     _origin: null,
+  //     _current: null,
+  //     _last: null,
+  //   }))
+  // }
 
   render() {
     const { elem, stack, editingElem } = this.state
