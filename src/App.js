@@ -56,31 +56,36 @@ class App extends Component {
     _origin: null,
     _last: null,
     _current: null,
+    tool: 'draw',
   }
 
   setElem = e => {
     this.setState({ elem: e.target.value })
   }
 
+  selectTool = tool => this.setState({ tool })
+
   onMouseDown = e => {
-    const { offsetX: x, offsetY: y } = e.nativeEvent
-    this.setState(({ elem, fill, stroke, strokeWidth }) => {
-      const id = uuid()
-      return {
-        editingElem: createElement(elem, {
-          fill,
-          stroke,
-          strokeWidth,
-          ...(elem === 'path' ? { d: `M ${x} ${y}` } : {}),
-          id,
-        }),
-        editingId: id,
-        _origin: { x, y },
-        _last: { x, y },
-        _current: { x, y },
-        creatingElem: true,
-      }
-    })
+    if (this.state.tool === 'draw') {
+      const { offsetX: x, offsetY: y } = e.nativeEvent
+      this.setState(({ elem, fill, stroke, strokeWidth }) => {
+        const id = uuid()
+        return {
+          editingElem: createElement(elem, {
+            fill,
+            stroke,
+            strokeWidth,
+            ...(elem === 'path' ? { d: `M ${x} ${y}` } : {}),
+            id,
+          }),
+          editingId: id,
+          _origin: { x, y },
+          _last: { x, y },
+          _current: { x, y },
+          creatingElem: true,
+        }
+      })
+    }
   }
 
   onMouseMove = e => {
@@ -156,6 +161,7 @@ class App extends Component {
                       const { offsetX: x, offsetY: y } = e.nativeEvent
                       this.startMoveElem({ id: editingElem.props.id, x, y })
                     },
+                    onMouseMove: null,
                   }),
                 }
               : {}),
@@ -172,17 +178,30 @@ class App extends Component {
   }
 
   startMoveElem = ({ id, x, y }) => {
-    this.setState(({ stack }) => ({
-      _origin: { x, y },
-      _current: { x, y },
-      _last: { x, y },
-      editingElem: cloneElement(stack[id], {
-        onMouseMove: this.moveElem,
-        // onMouseUp: this.stopMoveElem,
-        opacity: 0.5,
-      }),
-      editingId: id,
-    }))
+    if (this.state.tool === 'select') {
+      this.setState(({ stack }) => ({
+        _origin: { x, y },
+        _current: { x, y },
+        _last: { x, y },
+        editingElem: cloneElement(stack[id], {
+          onMouseMove: this.moveElem,
+          // onMouseUp: this.stopMoveElem,
+          opacity: 0.5,
+        }),
+        editingId: id,
+      }))
+    } else if (this.state.tool === 'fill') {
+      this.setState(prevState => {
+        return {
+          stack: {
+            ...prevState.stack,
+            [id]: cloneElement(prevState.stack[id], {
+              fill: 'blue',
+            }),
+          },
+        }
+      })
+    }
   }
 
   moveElem = e => {
@@ -246,6 +265,19 @@ class App extends Component {
             </label>
           ))}
           Elem: {elem}
+          <br />
+          {['select', 'draw', 'fill'].map(tool => (
+            <button
+              key={tool}
+              onClick={() => this.selectTool(tool)}
+              style={{
+                backgroundColor:
+                  tool === this.state.tool ? 'red' : 'transparent',
+              }}
+            >
+              {tool}
+            </button>
+          ))}
         </header>
         <svg
           style={{ width: '500px', height: '500px', border: '1px solid' }}
